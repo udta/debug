@@ -3,6 +3,52 @@
  * This is the common logic for both the Node.js and web browser
  * implementations of `debug()`.
  */
+var sprintf = require("sprintf-js").sprintf;
+var vsprintf = require("sprintf-js").vsprintf;
+
+var argsToString = function(args) {
+    var len = args.length;
+
+    //sprintf-js did not support %o / %O
+    args[0] = args[0].replace(/%o/g, "%s");
+
+    switch (args.length) {
+      case 1:
+        return args[0];
+      case 2:
+        return sprintf(args[0], args[1]);
+      case 3:
+        return sprintf(args[0], args[1], args[2]);
+      case 4:
+        return sprintf(args[0], args[1], args[2], args[3]);
+      case 5:
+        return sprintf(args[0], args[1], args[2], args[3], args[4]);
+      case 6:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5]);
+      case 7:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+      case 8:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+      case 9:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
+      case 10:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]);
+      case 11:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]);
+      case 12:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]);
+      case 13:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]);
+      case 14:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]);
+      case 15:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]);
+      case 16:
+        return sprintf(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]);
+      default:
+        return null;
+    }
+}
 
 module.exports = function setup(env) {
   createDebug.debug = createDebug['default'] = createDebug;
@@ -10,11 +56,39 @@ module.exports = function setup(env) {
   createDebug.disable = disable;
   createDebug.enable = enable;
   createDebug.enabled = enabled;
+  createDebug.enabledLocalLog = enabledLocalLog;
+  createDebug.enableLocalLog = enableLocalLog;
+  createDebug.disableLocalLog = disableLocalLog;
+  createDebug.getLocalLogs = getLocalLogs;
   createDebug.humanize = require('ms');
 
   Object.keys(env).forEach(function(key) {
     createDebug[key] = env[key];
   });
+
+  if (false) {
+    if (!window.logIndex) {
+      window.logIndex = 0;
+    }
+    createDebug.logIndex = window.logIndex;
+  } else {
+    
+    if (env.sessionStorage.dbName) {
+      createDebug.logStorage.config( { name: env.sessionStorage.dbName });
+
+      createDebug.logIndex = 0;
+      /*Incase user reflesh the tab*/
+      createDebug.logStorage.length().then(function(v) {
+              window.logIndex = v;
+              createDebug.logIndex = window.logIndex;
+  });
+    } else {
+      /*Default DB name is localforage*/
+      window.logIndex = 0;
+      createDebug.logIndex = window.logIndex; 
+    }
+  }
+
 
   /**
    * Active `debug` instances.
@@ -27,6 +101,11 @@ module.exports = function setup(env) {
 
   createDebug.names = [];
   createDebug.skips = [];
+
+  /**
+   * The currently state of Local Log.
+   */
+  createDebug.localLogState = true;
 
   /**
    * Map of special "%n" handling functions, for the debug "format" argument.
@@ -67,19 +146,8 @@ module.exports = function setup(env) {
     var prevTime;
 
     function debug() {
-      // disabled?
-      if (!debug.enabled) return;
 
-      var self = debug;
-
-      // set `diff` timestamp
-      var curr = +new Date();
-      var ms = curr - (prevTime || curr);
-      self.diff = ms;
-      self.prev = prevTime;
-      self.curr = curr;
-      prevTime = curr;
-
+      var date = new Date();
       // turn the `arguments` into a proper Array
       var args = new Array(arguments.length);
       for (var i = 0; i < args.length; i++) {
@@ -92,6 +160,25 @@ module.exports = function setup(env) {
         // anything else let's inspect with %O
         args.unshift('%O');
       }
+
+      if (createDebug.localLogState === true) {
+        //Save log into localforage whatever debug is disabled or not.
+        var logTime = date.getFullYear() + "-" + (parseInt(date.getMonth())+1) + "-" + date.getDate() + "@" + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds() + "." + date.getMilliseconds();
+        createDebug.logStorage.setItem(createDebug.logIndex + "-" + namespace, createDebug.logIndex++ + "[" + logTime + "] " + namespace + ": " + argsToString(args)); //" <" + Math.random().toString(36).substr(2) + "> " +
+      }
+
+      // disabled?
+      if (!debug.enabled) return;
+
+      var self = debug;
+
+      // set `diff` timestamp
+      var curr = +date;
+      var ms = curr - (prevTime || curr);
+      self.diff = ms;
+      self.prev = prevTime;
+      self.curr = curr;
+      prevTime = curr;
 
       // apply any `formatters` transformations
       var index = 0;
@@ -217,6 +304,108 @@ module.exports = function setup(env) {
   }
 
   /**
+     * Enable LocalLog 
+     *  
+     * @api public
+     */
+
+  function enableLocalLog() {
+    createDebug.saveLocalLogState(true);
+    createDebug.localLogState = true;
+  }
+
+  /**
+   * Disable LocalLog.
+   *
+   * @api public
+   */
+
+  function disableLocalLog() {
+    createDebug.saveLocalLogState(false);
+    createDebug.localLogState = false;
+  }
+
+  /**
+   * Returns true if the LocalLog is enabled, false otherwise.
+   *
+   * @return {Boolean}
+   * @api public
+   */
+
+  function enabledLocalLog() {
+    return createDebug.localLogState;
+  }
+
+  /**
+   * Get the local log 
+   *
+   * @param {String} filter
+   * @return {Array} logs window.logs = window.logs.filter(function(x){return (x !== (undefined || null || ''));});
+   * @api public
+   */
+
+  function getLocalLogs(filter) {
+
+    function enabled(name, skips, names) {
+      if (name[name.length - 1] === '*') {
+        return true;
+      }
+      var i, len;
+
+      for (i = 0, len = skips.length; i < len; i++) {
+        if (skips[i].test(name)) {
+          return false;
+        }
+      }
+
+      for (i = 0, len = names.length; i < len; i++) {
+        if (names[i].test(name)) {
+        return true;
+      }
+    }
+    return false;
+    }
+    
+    window.logs = [];
+    skips = [];
+    names = [];
+
+    //Process filter
+    var i = 0;
+    var split = (typeof filter === 'string' ? filter : '').split(/[\s,]+/);
+    var len = split.length;
+
+    for (i = 0; i < len; i++) {
+      if (!split[i]) continue; // ignore empty strings
+      filter = split[i].replace(/\*/g, '.*?');
+      if (filter[0] === '-') {
+        skips.push(new RegExp('^' + filter.substr(1) + '$'));
+      } else {
+        names.push(new RegExp('^' + filter + '$'));
+      }
+    }
+
+    //Filter all keys
+    createDebug.logStorage.keys().then(function(keys){
+        for (var i = 0; i < keys.length; i++) {
+
+          //Remove the logIndex first "index-REALKEY"
+          var index = parseInt(keys[i]);
+          var key = keys[i].substr(index.toString().length+1);
+
+          if ( enabled(key, skips, names) ) {
+            createDebug.logStorage.getItem(keys[i]).then(function(log){
+                var index = parseInt(log);
+                window.logs[index] = log.substr(index.toString().length) + "\r\n";
+            }).catch(function(err){})
+          }
+        }
+    }).catch(function(err) {});
+
+    return;
+  }
+
+  /**
    * Coerce `val`.
    *
    * @param {Mixed} val
@@ -230,6 +419,8 @@ module.exports = function setup(env) {
   }
 
   createDebug.enable(createDebug.load());
+
+  createDebug.localLogState = createDebug.loadLocalLogState() === "true"?true:false;
 
   return createDebug;
 }

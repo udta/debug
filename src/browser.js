@@ -6,7 +6,11 @@ exports.log = log;
 exports.formatArgs = formatArgs;
 exports.save = save;
 exports.load = load;
+exports.saveLocalLogState = saveLocalLogState;
+exports.loadLocalLogState = loadLocalLogState;
 exports.useColors = useColors;
+exports.sessionStorage = window.sessionStorage;
+exports.logStorage = logStorage();
 exports.storage = 'undefined' != typeof chrome
                && 'undefined' != typeof chrome.storage
                   ? chrome.storage.local
@@ -46,8 +50,14 @@ function useColors() {
     return true;
   }
 
-  // Internet Explorer and Edge do not support colors.
-  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+  // Internet Explorer do not support colors.
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/trident\/(\d+)/)) {
+      return false;
+  }
+
+  // Rzhang: Edge supports colors since 16215
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/edge\/(\d+)/) 
+      && (parseInt(navigator.userAgent.toLowerCase().match(/edge\/\d+.(\d+)/)[1]) < 16215)) {
     return false;
   }
 
@@ -156,6 +166,46 @@ function load() {
 }
 
 /**
+ * Save LocalLog enable state.
+ *
+ * @param {Bool} state
+ * @api private
+ */
+
+function saveLocalLogState(state) {
+  try {
+    if (null == state || state != false) {
+      exports.storage.setItem('localLog', true);
+    } else {
+      exports.storage.setItem('localLog', false); 
+    }
+  } catch (e) {
+  }
+}
+
+/**
+ * Load `localLog` setting.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function loadLocalLogState() {
+  var r = true;
+  try {
+      r = exports.storage.localLog;
+  } catch (e) {
+  }
+
+  // If debug isn't set in LS
+  if (!r ) {
+    r = true;
+  }
+
+  return r;
+}
+
+/**
  * Localstorage attempts to return the localstorage.
  *
  * This is necessary because safari throws
@@ -169,6 +219,23 @@ function load() {
 function localstorage() {
   try {
     return window.localStorage;
+  } catch (e) {}
+}
+
+/**
+ * LogStorage attempts to return the localForage (npm install
+ * localforage).
+ *
+ * The LogStorage is for storing all logs in the browser
+ * storage.
+ * 
+ * @return {LocalForage}
+ * @api private
+ * @author udta (17-11-23)
+ */
+function logStorage() {
+  try {
+    return require('localforage');
   } catch (e) {}
 }
 
