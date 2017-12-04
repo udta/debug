@@ -81,7 +81,7 @@ module.exports = function setup(env) {
       createDebug.logStorage.length().then(function(v) {
               window.logIndex = v;
               createDebug.logIndex = window.logIndex;
-  });
+          });
     } else {
       /*Default DB name is localforage*/
       window.logIndex = 0;
@@ -133,6 +133,45 @@ module.exports = function setup(env) {
     return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
   }
   createDebug.selectColor = selectColor;
+
+  /**
+   * Select a background color.
+   * @param {String} namespace
+   * @return {Number}
+   * @api private
+   */
+
+  function selectBGColor(namespace) {
+    var hash = 0, i;
+
+    var level = namespace.match(/:(\w+)/)[1];
+    switch (level) {
+      case 'DEBUG':
+        i = 0;
+        break;
+      case 'LOG':
+        i = 1;
+        break;
+      case 'INFO':
+        i = 2;
+        break;
+      case 'WARN':
+        i = 3;
+        break;
+      case 'ERROR':
+        i = 4;
+        break;
+      case 'FATAL':
+        i = 5;
+        break;
+      default:
+        i = 2;
+        break;
+    }
+    
+    return createDebug.bgColors[i];
+  }
+  createDebug.selectBGColor = selectBGColor; 
 
   /**
    * Create a debugger with the given `namespace`.
@@ -209,6 +248,7 @@ module.exports = function setup(env) {
     debug.enabled = createDebug.enabled(namespace);
     debug.useColors = createDebug.useColors();
     debug.color = selectColor(namespace);
+    debug.bgColor = selectBGColor(namespace);
     debug.destroy = destroy;
     //debug.formatArgs = formatArgs;
     //debug.rawLog = rawLog;
@@ -360,10 +400,10 @@ module.exports = function setup(env) {
 
       for (i = 0, len = names.length; i < len; i++) {
         if (names[i].test(name)) {
-        return true;
+          return true;
+        }
       }
-    }
-    return false;
+      return false;
     }
     
     window.logs = [];

@@ -10,7 +10,7 @@ exports.saveLocalLogState = saveLocalLogState;
 exports.loadLocalLogState = loadLocalLogState;
 exports.useColors = useColors;
 exports.sessionStorage = window.sessionStorage;
-exports.logStorage = logStorage();
+exports.logStorage = logStorage(); 
 exports.storage = 'undefined' != typeof chrome
                && 'undefined' != typeof chrome.storage
                   ? chrome.storage.local
@@ -19,7 +19,7 @@ exports.storage = 'undefined' != typeof chrome
 /**
  * Colors.
  */
-
+/*
 exports.colors = [
   '#0000CC', '#0000FF', '#0033CC', '#0033FF', '#0066CC', '#0066FF', '#0099CC',
   '#0099FF', '#00CC00', '#00CC33', '#00CC66', '#00CC99', '#00CCCC', '#00CCFF',
@@ -32,6 +32,22 @@ exports.colors = [
   '#CCCC00', '#CCCC33', '#FF0000', '#FF0033', '#FF0066', '#FF0099', '#FF00CC',
   '#FF00FF', '#FF3300', '#FF3333', '#FF3366', '#FF3399', '#FF33CC', '#FF33FF',
   '#FF6600', '#FF6633', '#FF9900', '#FF9933', '#FFCC00', '#FFCC33'
+];*/
+exports.colors = [
+    '#295288'
+   //'#46A7C9'
+    ];
+
+/**
+ * Background Colors
+ */
+exports.bgColors = [
+  'inherit', //DEBUG
+  'inherit', //LOG
+  '#46A7C9', //INFO
+  '#D08005;font-size:14px', //WARN
+  '#F64863;font-size:16px', //ERROR
+  '#F64863;font-size:18px'  //FATAL
 ];
 
 /**
@@ -50,7 +66,7 @@ function useColors() {
     return true;
   }
 
-  // Internet Explorer do not support colors.
+  // Internet Explorer do not support colors. 
   if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/trident\/(\d+)/)) {
       return false;
   }
@@ -58,7 +74,7 @@ function useColors() {
   // Rzhang: Edge supports colors since 16215
   if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/edge\/(\d+)/) 
       && (parseInt(navigator.userAgent.toLowerCase().match(/edge\/\d+.(\d+)/)[1]) < 16215)) {
-    return false;
+      return false;
   }
 
   // is webkit? http://stackoverflow.com/a/16459606/376773
@@ -86,13 +102,13 @@ function formatArgs(args) {
     + this.namespace
     + (useColors ? ' %c' : ' ')
     + args[0]
-    + (useColors ? '%c ' : ' ')
-    + '+' + module.exports.humanize(this.diff);
+    + (useColors ? '%c ' : ' ');
+    //+ '+' + module.exports.humanize(this.diff);
 
   if (!useColors) return;
 
   var c = 'color: ' + this.color;
-  args.splice(1, 0, c, 'color: inherit')
+  args.splice(1, 0, c, 'color: ' + this.bgColor)
 
   // the final "%c" is somewhat tricky, because there could be other
   // arguments passed either before or after the %c, so we need to
@@ -119,12 +135,19 @@ function formatArgs(args) {
  * @api public
  */
 
-function log() {
+function log() {  
   // this hackery is required for IE8/9, where
   // the `console.log` function doesn't have 'apply'
-  return 'object' === typeof console
+  if (this.bgColor !== debug.bgColors[4]) {
+    return 'object' === typeof console
     && console.log
     && Function.prototype.apply.call(console.log, console, arguments);
+  } else {
+    return 'object' === typeof console
+           && console.error
+           && Function.prototype.apply.call(console.error, console, arguments);
+
+  }
 }
 
 /**
