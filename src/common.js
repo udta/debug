@@ -60,11 +60,15 @@ module.exports = function setup(env) {
   createDebug.enableLocalLog = enableLocalLog;
   createDebug.disableLocalLog = disableLocalLog;
   createDebug.getLocalLogs = getLocalLogs;
-  createDebug.humanize = require('ms');
+  createDebug.getLocalDBName = getLocalDBName;
+  //createDebug.humanize = require('ms');
 
   Object.keys(env).forEach(function(key) {
     createDebug[key] = env[key];
   });
+
+  createDebug.keyBuffer = new Array();
+  createDebug.logBuffer = new Array();
 
   if (false) {
     if (!window.logIndex) {
@@ -74,14 +78,37 @@ module.exports = function setup(env) {
   } else {
     
     if (env.sessionStorage.dbName) {
-      createDebug.logStorage.config( { name: env.sessionStorage.dbName });
 
-      createDebug.logIndex = 0;
+      createDebug.logStorage.config( { name: env.sessionStorage.dbName,
+        driver:  createDebug.logStorage.INDEXEDDB, storeName: "localLogs" });
+
+
+      //Save dbName into indexedDB "DatabaseList"
+      createDebug.dbStorage.getItem(env.sessionStorage.dbName).then(function(info) {
+              if (info != null && info !== "[object Object]") {//Todo: figure out why info is [object Object], when dbName is not exisit.
+                var infoJson = eval("(" + info + ")");
+                if (infoJson.TS) {
+                  infoJson.TS.push((new Date()).getTime());
+                }
+              } else {
+                var infoJson = { TS: [ (new Date()).getTime() ], confID: env.sessionStorage.dbName.match(/\d+/)[0], 
+                  dbName: env.sessionStorage.dbName, userName: window.localStorage.userName, email: window.localStorage.email };
+              }
+              createDebug.updateDBInfo(sprintf("%j", infoJson));
+      });
+
+
+      if (!env.sessionStorage.dbIndex) { 
+        createDebug.logIndex = 0;
+      } else {
+        createDebug.logIndex = env.sessionStorage.dbIndex;
+      }
+      window.logIndex = createDebug.logIndex;
       /*Incase user reflesh the tab*/
-      createDebug.logStorage.length().then(function(v) {
-              window.logIndex = v;
-              createDebug.logIndex = window.logIndex;
-          });
+      //createDebug.logStorage.length().then(function(v) {
+      //        window.logIndex = v;
+      //        createDebug.logIndex = window.logIndex;
+      //    });
     } else {
       /*Default DB name is localforage*/
       window.logIndex = 0;
@@ -182,7 +209,7 @@ module.exports = function setup(env) {
    */
 
   function createDebug(namespace) {
-    var prevTime;
+    //var prevTime;
 
     function debug() {
 
@@ -203,7 +230,19 @@ module.exports = function setup(env) {
       if (createDebug.localLogState === true) {
         //Save log into localforage whatever debug is disabled or not.
         var logTime = date.getFullYear() + "-" + (parseInt(date.getMonth())+1) + "-" + date.getDate() + "@" + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds() + "." + date.getMilliseconds();
-        createDebug.logStorage.setItem(createDebug.logIndex + "-" + namespace, createDebug.logIndex++ + "[" + logTime + "] " + namespace + ": " + argsToString(args)); //" <" + Math.random().toString(36).substr(2) + "> " +
+
+        createDebug.keyBuffer.push(createDebug.logIndex + "-" + namespace)
+        createDebug.logBuffer.push(createDebug.logIndex + "[" + logTime + "] " + namespace + ": " + argsToString(args));
+
+        if (createDebug.keyBuffer.length >= 20) {
+            createDebug.logStorage.setItems(createDebug.keyBuffer.concat(), createDebug.logBuffer.concat()).then(function(value) {}).catch(function(err) {console.error(err);});
+            createDebug.keyBuffer = [];
+            createDebug.logBuffer = [];
+        }
+        createDebug.logIndex++;
+
+        window.logIndex = createDebug.logIndex;
+        window.sessionStorage.dbIndex = window.logIndex;
       }
 
       // disabled?
@@ -212,15 +251,16 @@ module.exports = function setup(env) {
       var self = debug;
 
       // set `diff` timestamp
-      var curr = +date;
-      var ms = curr - (prevTime || curr);
-      self.diff = ms;
-      self.prev = prevTime;
-      self.curr = curr;
-      prevTime = curr;
+      //var curr = +date;
+      //var ms = curr - (prevTime || curr);
+      //self.diff = ms;
+      //self.prev = prevTime;
+      //self.curr = curr;
+      //prevTime = curr;
 
       // apply any `formatters` transformations
       var index = 0;
+
       args[0] = args[0].replace(/%([a-zA-Z%])/g, function(match, format) {
         // if we encounter an escaped % then don't increase the array index
         if (match === '%%') return match;
@@ -384,7 +424,7 @@ module.exports = function setup(env) {
    * @api public
    */
 
-  function getLocalLogs(filter) {
+  function getLocalLogs(filter, dbName) {
 
     function enabled(name, skips, names) {
       if (name[name.length - 1] === '*') {
@@ -425,8 +465,14 @@ module.exports = function setup(env) {
       }
     }
 
+    if (dbName) {
+      var db = createDebug.logStorage.createInstance( { name: dbName, storeName: "localLogs" });
+    } else {
+      var db = createDebug.logStorage;
+    }
+    
     //Filter all keys
-    createDebug.logStorage.keys().then(function(keys){
+    db.keys().then(function(keys){
         for (var i = 0; i < keys.length; i++) {
 
           //Remove the logIndex first "index-REALKEY"
@@ -434,9 +480,9 @@ module.exports = function setup(env) {
           var key = keys[i].substr(index.toString().length+1);
 
           if ( enabled(key, skips, names) ) {
-            createDebug.logStorage.getItem(keys[i]).then(function(log){
+            db.getItem(keys[i]).then(function(log){
                 var index = parseInt(log);
-                window.logs[index] = log.substr(index.toString().length) + "\r\n";
+                window.logs[index] = '['+index+']'+log.substr(index.toString().length) + "\r\n";
             }).catch(function(err){})
           }
         }
@@ -444,6 +490,68 @@ module.exports = function setup(env) {
 
     return;
   }
+
+  /**
+   * Get all Database name list 
+   * @api public
+   */
+
+  function getLocalDBName() {
+
+    window.localDBs = [ ];
+
+    createDebug.dbStorage.keys().then(function(keys) {
+            for (var i = 0; i < keys.length; i++) {
+                createDebug.dbStorage.getItem(keys[i]).then(function(info) {
+                        window.localDBs.push(info);
+                    }).catch(function(err) {})
+            }
+        }).catch(function(err) {});
+
+    return;
+  }
+
+  /**
+   * Update the sipID in dbInformation in database "DatabaseList"
+   * 
+   */
+  function updateSipID(sipID) {
+    try {
+      createDebug.dbStorage.getItem(createDebug.sessionStorage.dbName).then(function(info) {
+              if (info != null && info !== "[object Object]") { //Todo: figure out why info is [object Object], when dbName is not exisit.
+                var infoJson = eval("(" + info + ")");
+                if (!infoJson.sipID) {
+                  infoJson.sipID = [];
+                }
+                infoJson.sipID.push(sipID);
+
+              } else {
+                var infoJson = { TS: [ (new Date()).getTime() ], confID: createDebug.sessionStorage.dbName.match(/\d+/)[0],
+                  dbName: createDebug.sessionStorage.dbName, userName: window.localStorage.userName, email: window.localStorage.email, sipID: [ sipID ] };
+              }
+              createDebug.updateDBInfo(sprintf("%j", infoJson));
+          });
+    } catch (e) {
+    }
+  }
+  createDebug.updateSipID = updateSipID;
+  
+  /**
+   * Flush buffer into DB
+   * 
+   */
+  function flushLogBuffer() {
+    try {
+      if (createDebug.keyBuffer.length > 0) {
+        createDebug.logStorage.setItems(createDebug.keyBuffer.concat(), createDebug.logBuffer.concat()).then(function(value) {}).catch(function(err) {console.error(err);});
+        createDebug.keyBuffer = [ ];
+        createDebug.logBuffer = [ ];
+      }
+         
+    } catch (e) {
+    }
+  }
+  createDebug.flushLogBuffer = flushLogBuffer;
 
   /**
    * Coerce `val`.

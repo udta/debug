@@ -9,8 +9,10 @@ exports.load = load;
 exports.saveLocalLogState = saveLocalLogState;
 exports.loadLocalLogState = loadLocalLogState;
 exports.useColors = useColors;
+exports.updateDBInfo = updateDBInfo;
 exports.sessionStorage = window.sessionStorage;
 exports.logStorage = logStorage(); 
+exports.dbStorage = dbStorage(); //Save the dbName into the "DatabaseList" DB
 exports.storage = 'undefined' != typeof chrome
                && 'undefined' != typeof chrome.storage
                   ? chrome.storage.local
@@ -258,8 +260,30 @@ function localstorage() {
  */
 function logStorage() {
   try {
-    return require('localforage');
+    return require('./localforage.js');
   } catch (e) {}
+}
+
+function dbStorage() {
+  try {
+    return exports.logStorage.createInstance( { name: "DatabaseList",
+           driver:  exports.logStorage.INDEXEDDB });
+  } catch (e) {
+  }
+}
+
+/**
+ * Update the dbInformation in database "DatabaseList"
+ * The info is a json: {TZ: xx, ConfID：xx， CallID: xx,
+ * email: xx}
+ *
+ * @api public
+ */
+function updateDBInfo(info) {
+    try {
+      exports.dbStorage.setItem(exports.sessionStorage.dbName, info);
+    } catch (e) {
+    }
 }
 
 module.exports = require('./common')(exports);
