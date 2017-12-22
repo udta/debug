@@ -260,7 +260,12 @@ function localstorage() {
  */
 function logStorage() {
   try {
-    return require('./localforage.js');
+
+    if (window.Promise != undefined) {
+      return require('./localforage.nopromises.js');
+    } else {
+      return require('./localforage.js');
+    }
   } catch (e) {}
 }
 
